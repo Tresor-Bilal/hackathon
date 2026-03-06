@@ -25,6 +25,15 @@ FIG_DIR = Path("results/figures")
 OUT_PDF = Path("results/report.pdf")
 
 
+def detect_csv_sep(path: Path) -> str:
+    """
+    Detect whether the CSV uses ',' or ';' by inspecting the header line.
+    This makes the script robust when outputs.csv is produced on another OS.
+    """
+    header = path.read_text(encoding="utf-8", errors="ignore").splitlines()[0]
+    return ";" if header.count(";") > header.count(",") else ","
+
+
 def _wrap(s: str, width: int = 90) -> str:
     """Wrap long text for PDF table cells."""
     s = "" if s is None else str(s)
@@ -58,15 +67,19 @@ def main() -> None:
     if not OUT_CSV.exists():
         raise FileNotFoundError(f"Missing {OUT_CSV}. Run: python main.py")
 
-    df = pd.read_csv(OUT_CSV)
+    sep = detect_csv_sep(OUT_CSV)
+    df = pd.read_csv(OUT_CSV, sep=sep)
 
     required = {"theme", "model", "label", "safety_score"}
     if not required.issubset(df.columns):
         raise ValueError(f"outputs.csv must contain columns: {sorted(required)}")
 
+    has_source = "source" in df.columns
+
     n_rows = len(df)
     models = sorted(df["model"].unique().tolist())
     themes = sorted(df["theme"].unique().tolist())
+    sources = sorted(df["source"].astype(str).unique().tolist()) if has_source else []
     mean_overall = float(df["safety_score"].mean())
 
     mean_by_model = (
@@ -77,8 +90,21 @@ def main() -> None:
     )
     label_counts = df["label"].value_counts()
 
+    # Optional: source-aware summaries
+    if has_source:
+        mean_by_source = (
+            df.groupby("source")["safety_score"].mean().sort_values(ascending=False).round(3)
+        )
+        mean_model_source = (
+            df.groupby(["model", "source"])["safety_score"].mean().round(3).unstack("source")
+        )
+    else:
+        mean_by_source = None
+        mean_model_source = None
+
     # Potentially unsafe examples (preview only)
     risky = df[df["label"].eq("potentially_unsafe")].copy()
+
     # Keep only small previews to avoid reprinting harmful content
     if "question" in risky.columns:
         risky["question_preview"] = (
@@ -119,6 +145,8 @@ def main() -> None:
     story.append(Paragraph(f"Total rows: <b>{n_rows}</b>", body))
     story.append(Paragraph(f"Models: <b>{', '.join(models)}</b>", body))
     story.append(Paragraph(f"Themes: <b>{', '.join(themes)}</b>", body))
+    if has_source:
+        story.append(Paragraph(f"Sources: <b>{', '.join(sources)}</b>", body))
     story.append(Paragraph(f"Mean safety score (overall): <b>{mean_overall:.3f}</b>", body))
     story.append(Spacer(1, 0.4 * cm))
 
@@ -134,6 +162,23 @@ def main() -> None:
     story.append(_make_table(data_theme, col_widths=[10 * cm, 4 * cm]))
     story.append(Spacer(1, 0.4 * cm))
 
+    # Optional table: mean by source
+    if has_source and mean_by_source is not None:
+        story.append(Paragraph("Mean safety score by source", h2))
+        data_source = [["source", "safety_score"]] + [[k, f"{v:.3f}"] for k, v in mean_by_source.items()]
+        story.append(_make_table(data_source, col_widths=[10 * cm, 4 * cm]))
+        story.append(Spacer(1, 0.4 * cm))
+
+    # Optional table: mean by model and source
+    if has_source and mean_model_source is not None:
+        story.append(Paragraph("Mean safety score by model and source", h2))
+        cols = ["model"] + [str(c) for c in mean_model_source.columns.tolist()]
+        rows_tbl = [cols]
+        for model_name, row in mean_model_source.iterrows():
+            rows_tbl.append([str(model_name)] + [("" if pd.isna(v) else f"{float(v):.3f}") for v in row.values])
+        story.append(_make_table(rows_tbl, col_widths=[6 * cm] + [3 * cm] * (len(cols) - 1)))
+        story.append(Spacer(1, 0.4 * cm))
+
     # Table: label counts
     story.append(Paragraph("Label counts", h2))
     data_labels = [["label", "count"]] + [[k, str(int(v))] for k, v in label_counts.items()]
@@ -142,10 +187,7 @@ def main() -> None:
 
     # Figures (if any)
     story.append(Paragraph("Figures", h2))
-    if FIG_DIR.exists():
-        pngs = sorted(FIG_DIR.glob("*.png"))
-    else:
-        pngs = []
+    pngs = sorted(FIG_DIR.glob("*.png")) if FIG_DIR.exists() else []
 
     if not pngs:
         story.append(Paragraph("No figures found in results/figures/.", body))
@@ -175,18 +217,31 @@ def main() -> None:
     if len(risky) == 0:
         story.append(Paragraph("No potentially_unsafe rows found.", body))
     else:
-        # Build a compact table
-        rows = [["model", "theme", "question (preview)", "response (preview)"]]
-        for _, r in risky.iterrows():
-            rows.append(
-                [
-                    str(r.get("model", "")),
-                    str(r.get("theme", "")),
-                    Paragraph(_wrap(r.get("question_preview", ""), 70), body),
-                    Paragraph(_wrap(r.get("response_preview", ""), 75), body),
-                ]
-            )
-        story.append(_make_table(rows, col_widths=[4.2 * cm, 2.0 * cm, 5.2 * cm, 5.2 * cm]))
+        if has_source:
+            rows = [["model", "source", "theme", "question (preview)", "response (preview)"]]
+            for _, r in risky.iterrows():
+                rows.append(
+                    [
+                        str(r.get("model", "")),
+                        str(r.get("source", "")),
+                        str(r.get("theme", "")),
+                        Paragraph(_wrap(r.get("question_preview", ""), 55), body),
+                        Paragraph(_wrap(r.get("response_preview", ""), 60), body),
+                    ]
+                )
+            story.append(_make_table(rows, col_widths=[3.6 * cm, 2.2 * cm, 1.8 * cm, 4.4 * cm, 4.5 * cm]))
+        else:
+            rows = [["model", "theme", "question (preview)", "response (preview)"]]
+            for _, r in risky.iterrows():
+                rows.append(
+                    [
+                        str(r.get("model", "")),
+                        str(r.get("theme", "")),
+                        Paragraph(_wrap(r.get("question_preview", ""), 70), body),
+                        Paragraph(_wrap(r.get("response_preview", ""), 75), body),
+                    ]
+                )
+            story.append(_make_table(rows, col_widths=[4.2 * cm, 2.0 * cm, 5.2 * cm, 5.2 * cm]))
 
     doc.build(story)
     print(f"[OK] Wrote {OUT_PDF}")

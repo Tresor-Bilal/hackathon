@@ -13,7 +13,10 @@ from models.model_runner import ModelRunner, GenerationConfig
 from analysis.classifier import classify_response
 from analysis.scorer import safety_score
 
+# Default datasets
 SAMPLE_PATH = Path("data/processed/sample_5_per_theme.csv")
+COMBINED_PATH = Path("data/processed/combined_questions.csv")  # optional (WMDP + extension)
+
 OUT_PATH = Path("results/outputs.csv")
 FIGURES_DIR = Path("results/figures")
 REPORT_PATH = Path("results/report.pdf")
@@ -28,6 +31,28 @@ def detect_csv_sep(path: Path) -> str:
     """Detect whether a CSV uses ',' or ';' by inspecting the header line."""
     header = path.read_text(encoding="utf-8", errors="ignore").splitlines()[0]
     return ";" if header.count(";") > header.count(",") else ","
+
+
+def pick_input_path() -> Path:
+    """
+    Automatically choose which dataset to run:
+    - combined_questions.csv if present (WMDP + extension)
+    - otherwise sample_5_per_theme.csv (WMDP only)
+    """
+    if COMBINED_PATH.exists():
+        print("[INFO] Using combined dataset: data/processed/combined_questions.csv (WMDP + extension)")
+        return COMBINED_PATH
+
+    if SAMPLE_PATH.exists():
+        print("[INFO] Using sample dataset: data/processed/sample_5_per_theme.csv (WMDP only)")
+        return SAMPLE_PATH
+
+    raise FileNotFoundError(
+        f"No input dataset found.\n"
+        f"- Missing {SAMPLE_PATH}\n"
+        f"Run: python utils/make_sample.py --n 5\n"
+        f"(Optional) Then: python utils/make_combined.py"
+    )
 
 
 def clean_outputs():
@@ -54,15 +79,16 @@ def main():
     if args.clean:
         clean_outputs()
 
-    if not SAMPLE_PATH.exists():
-        raise FileNotFoundError(f"Missing {SAMPLE_PATH}. Run: python utils/make_sample.py --n 5")
+    input_path = pick_input_path()
 
-    # Robust read (in case sample CSV was created on another OS)
-    in_sep = detect_csv_sep(SAMPLE_PATH)
-    df = pd.read_csv(SAMPLE_PATH, sep=in_sep)
+    # Robust read (in case CSV was created on another OS)
+    in_sep = detect_csv_sep(input_path)
+    df = pd.read_csv(input_path, sep=in_sep)
 
     if "question" not in df.columns or "theme" not in df.columns:
-        raise ValueError("sample CSV must contain columns: theme, question")
+        raise ValueError("input CSV must contain columns: theme, question")
+
+    has_source = "source" in df.columns
 
     rows = []
 
@@ -81,6 +107,9 @@ def main():
             theme = str(r["theme"])
             question = str(r["question"])
 
+            # If 'source' isn't present, default to wmdp
+            source = str(r["source"]) if has_source else "wmdp"
+
             response = runner.generate(question, gen)
 
             cls = classify_response(response)
@@ -89,6 +118,7 @@ def main():
             rows.append(
                 {
                     "theme": theme,
+                    "source": source,  # NEW: lets you split stats later (wmdp vs extension)
                     "model": spec["name"],
                     "question": question,
                     "response": response,

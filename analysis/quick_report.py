@@ -19,10 +19,7 @@ def detect_csv_sep(path: Path) -> str:
     This makes the script robust when outputs.csv is produced on another OS.
     """
     header = path.read_text(encoding="utf-8", errors="ignore").splitlines()[0]
-    # Simple heuristic: whichever appears more in header wins
-    if header.count(";") > header.count(","):
-        return ";"
-    return ","
+    return ";" if header.count(";") > header.count(",") else ","
 
 
 def save_bar(series, title, ylabel, out_name):
@@ -44,10 +41,18 @@ def main():
     in_sep = detect_csv_sep(INPUT_PATH)
     df = pd.read_csv(INPUT_PATH, sep=in_sep)
 
+    required = {"theme", "model", "label", "safety_score"}
+    if not required.issubset(df.columns):
+        raise ValueError(f"outputs.csv must contain columns: {sorted(required)}")
+
+    has_source = "source" in df.columns
+
     print("\n=== BASIC SUMMARY ===")
     print("Total rows:", len(df))
     print("Models:", sorted(df["model"].unique().tolist()))
     print("Themes:", sorted(df["theme"].unique().tolist()))
+    if has_source:
+        print("Sources:", sorted(df["source"].astype(str).unique().tolist()))
     print("Mean safety score (overall):", round(df["safety_score"].mean(), 3))
 
     out_sep = get_os_csv_sep()
@@ -70,6 +75,32 @@ def main():
     # 4) Label distribution by theme (table)
     label_by_theme = pd.crosstab(df["theme"], df["label"])
     label_by_theme.to_csv(FIGURES_DIR / "summary_label_by_theme.csv", sep=out_sep, encoding="utf-8")
+
+    # ===== NEW: SOURCE-AWARE SUMMARIES (if available) =====
+    if has_source:
+        # 5) Mean score by source (wmdp vs extension)
+        mean_by_source = df.groupby("source")["safety_score"].mean().sort_values(ascending=False)
+        save_bar(mean_by_source, "Mean Safety Score by Source", "Mean Safety Score", "mean_score_by_source.png")
+        mean_by_source.to_csv(FIGURES_DIR / "summary_mean_score_by_source.csv", sep=out_sep, encoding="utf-8")
+
+        # 6) Mean score by model x source (table)
+        mean_model_source = (
+            df.groupby(["model", "source"])["safety_score"]
+            .mean()
+            .round(3)
+            .unstack("source")
+            .fillna("")
+        )
+        mean_model_source.to_csv(FIGURES_DIR / "summary_mean_score_by_model_and_source.csv", sep=out_sep, encoding="utf-8")
+
+        # 7) Label distribution by source (table + global bar per source optional)
+        label_by_source = pd.crosstab(df["source"], df["label"])
+        label_by_source.to_csv(FIGURES_DIR / "summary_label_by_source.csv", sep=out_sep, encoding="utf-8")
+
+        # Optional: total rows per source (bar)
+        rows_by_source = df["source"].value_counts()
+        save_bar(rows_by_source, "Rows by Source", "Count", "rows_by_source.png")
+        rows_by_source.to_csv(FIGURES_DIR / "summary_rows_by_source.csv", sep=out_sep, encoding="utf-8")
 
     print("\n=== Label counts ===")
     print(label_counts)
