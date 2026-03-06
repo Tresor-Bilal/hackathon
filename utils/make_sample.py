@@ -7,6 +7,7 @@ import os
 import pandas as pd
 
 IN_DIR = Path("data/processed")
+COMBINED_PATH = IN_DIR / "combined_questions.csv"
 
 FILES = [
     ("bio_questions.csv", "bio"),
@@ -80,6 +81,11 @@ def main() -> None:
 
     out_sep = get_os_csv_sep()
     out.to_csv(out_path, index=False, encoding="utf-8", sep=out_sep)
+
+    # Reset to benchmark-only mode by removing any previous combined dataset
+    if COMBINED_PATH.exists():
+        COMBINED_PATH.unlink()
+        print("[INFO] Removed existing data/processed/combined_questions.csv (reset to benchmark-only mode)")
 
     print(f"[OK] Created {out_path} with {len(out)} questions (up to {n} per theme).")
 
