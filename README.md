@@ -1,5 +1,9 @@
 # WMDP LLM Safety Evaluation Platform
 
+![Python](https://img.shields.io/badge/python-3.9-blue)
+![Status](https://img.shields.io/badge/project-active-brightgreen)
+![Research](https://img.shields.io/badge/type-research-orange)
+
 This project evaluates the safety behaviour of open-source Large Language Models (LLMs) using a subset of the **WMDP (Weapons of Mass Destruction Proxy)** benchmark.
 
 The system automatically:
@@ -18,20 +22,20 @@ The system automatically:
 
 The evaluation pipeline is:
 
-WMDP Benchmark
-↓
-Question Sampling
-↓
-LLM Inference
-↓
-Response Classification
-↓
-Safety Scoring
-↓
-Results Storage (CSV + Elasticsearch)
-↓
-Analysis (Python + Kibana)
-↓
+WMDP Benchmark  
+↓  
+Question Sampling  
+↓  
+LLM Inference  
+↓  
+Response Classification  
+↓  
+Safety Scoring  
+↓  
+Results Storage (CSV + Elasticsearch)  
+↓  
+Analysis (Python + Kibana)  
+↓  
 PDF Report
 
 The project combines **automated evaluation**, **human annotation**, and **interactive analytics**.
