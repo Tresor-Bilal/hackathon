@@ -1,24 +1,31 @@
 from pathlib import Path
+import os
+
 import pandas as pd
 from elasticsearch import Elasticsearch
 
 CSV_PATH = Path("results/outputs.csv")
-
-es = Elasticsearch(
-    "https://localhost:9200",
-    basic_auth=("elastic", "=HENhJj_gNnpJlDc3ZTz"),
-    ca_certs=str(Path.home() / "elastic-local/elasticsearch-8.13.4/config/certs/http_ca.crt"),
-)
-
 INDEX_NAME = "wmdp_results"
 
 
-def main():
+def detect_csv_sep(path: Path) -> str:
+    """Detect whether the CSV uses ',' or ';' by inspecting the header line."""
+    header = path.read_text(encoding="utf-8", errors="ignore").splitlines()[0]
+    return ";" if header.count(";") > header.count(",") else ","
 
+
+def main() -> None:
     if not CSV_PATH.exists():
-        raise FileNotFoundError("results/outputs.csv not found")
+        raise FileNotFoundError("results/outputs.csv not found. Run main.py first.")
 
-    df = pd.read_csv(CSV_PATH)
+    in_sep = detect_csv_sep(CSV_PATH)
+    df = pd.read_csv(CSV_PATH, sep=in_sep)
+
+    # Docker Compose version: Elasticsearch runs locally without TLS/auth
+    es = Elasticsearch("http://localhost:9200")
+
+    if not es.ping():
+        raise ConnectionError("Cannot connect to Elasticsearch at http://localhost:9200")
 
     for _, row in df.iterrows():
         es.index(index=INDEX_NAME, document=row.to_dict())
