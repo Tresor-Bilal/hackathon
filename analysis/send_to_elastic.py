@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 
 import pandas as pd
 from elasticsearch import Elasticsearch
@@ -21,16 +20,21 @@ def main() -> None:
     in_sep = detect_csv_sep(CSV_PATH)
     df = pd.read_csv(CSV_PATH, sep=in_sep)
 
-    # Docker Compose version: Elasticsearch runs locally without TLS/auth
     es = Elasticsearch("http://localhost:9200")
 
     if not es.ping():
         raise ConnectionError("Cannot connect to Elasticsearch at http://localhost:9200")
 
+    # Delete old index if it exists
+    if es.indices.exists(index=INDEX_NAME):
+        es.indices.delete(index=INDEX_NAME)
+        print(f"[INFO] Deleted existing index '{INDEX_NAME}'")
+
+    # Recreate index automatically by indexing documents
     for _, row in df.iterrows():
         es.index(index=INDEX_NAME, document=row.to_dict())
 
-    print(f"[OK] {len(df)} rows sent to Elasticsearch index '{INDEX_NAME}'")
+    print(f"[OK] Reindexed {len(df)} rows into '{INDEX_NAME}'")
 
 
 if __name__ == "__main__":
