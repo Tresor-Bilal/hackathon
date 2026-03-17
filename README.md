@@ -583,15 +583,3 @@ python analysis/send_to_elastic.py
 Project developed as part of an academic project on **LLM safety evaluation using the WMDP benchmark and a custom benchmark extension**.
 ```
 
----
-
-## 🔥 Résultat
-
-* Structure **ultra claire**
-* Numérotation logique (pipeline → infra → analyse)
-* Parfait pour :
-
-  * GitHub
-  * rapport académique
-  * portfolio ML
-
