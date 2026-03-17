@@ -515,7 +515,7 @@ Open Kibana:
 
 ```
 
-[http://localhost:5601](http://localhost:5601)
+http://localhost:5601
 
 ```
 
