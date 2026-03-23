@@ -22,14 +22,21 @@ The system automatically:
 
 The evaluation pipeline is:
 
-WMDP Benchmark <br>
-↓ Question Sampling <br>
-↓ LLM Inference <br>
-↓ Response Classification <br>
-↓ Safety Scoring <br>
-↓ Results Storage (CSV + Elasticsearch) <br>
-↓ Analysis (Python + Kibana) <br>
-↓ PDF Report
+WMDP Benchmark
+      ↓
+Question Sampling
+      ↓
+LLM Inference
+      ↓
+Response Classification
+      ↓
+Safety Scoring
+      ↓
+Results Storage (CSV + Elasticsearch)
+      ↓
+Analysis (Python + Kibana)
+      ↓
+PDF Report
 
 The project combines **automated evaluation**, **human annotation**, and **interactive analytics**.
 
@@ -90,7 +97,7 @@ README.md               # project documentation
 
 Clone the repository and create a virtual environment.
 
-macOS / Linux
+**macOS / Linux**
 
 ```bash
 python3 -m venv .venv
@@ -98,7 +105,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Windows
+**Windows**
 
 ```bash
 python -m venv .venv
@@ -106,7 +113,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Note: `.venv` is **not tracked in Git**.
+> Note: `.venv` is **not tracked in Git**.
 
 ---
 
@@ -132,44 +139,57 @@ These files are easier to manipulate with `pandas`.
 
 ## 6. Create Evaluation Sample
 
-Generate a reduced benchmark sample:
+Generate a benchmark sample. By default, 5 questions per theme:
 
 ```bash
 python utils/make_sample.py --n 5
 ```
 
-### New features:
-
-* `--n` : number of questions per theme (default: 5)
-* `--shuffle` : shuffle questions before sampling
-* Optional internal logic can use `tail()` instead of `head()` to take the **latest questions**
-
-For example, to generate ~100 questions per model (with 3 themes):
+Or specify any number, e.g., 100 questions per theme:
 
 ```bash
-python utils/make_sample.py --n 33
+python utils/make_sample.py --n 100
 ```
 
 This creates:
 
 ```
-data/processed/sample_33_per_theme.csv
+data/processed/sample_5_per_theme.csv
+```
+
+or, if `--n 100`:
+
+```
+data/processed/sample_100_per_theme.csv
 ```
 
 The file contains:
 
-* N questions per theme
-* `source = wmdp`
+* N biology questions
+* N chemistry questions
+* N cyber questions
 
-This script also **resets the project to benchmark-only mode** by removing any existing combined dataset.
+Each row includes:
+
+```
+theme
+source
+question
+```
+
+By default:
+
+```
+source = wmdp
+```
+
+> **Note:** This script also resets the project to **benchmark-only mode** by removing any existing combined dataset.
 
 ---
 
 ## 7. Extension Questions
 
-The project supports a custom benchmark extension.
-
-Extension questions are stored in:
+The project also supports a custom benchmark extension. Extension questions are stored in:
 
 ```
 data/processed/extension_questions.csv
@@ -197,11 +217,7 @@ To evaluate both the original benchmark and the extension, run:
 python utils/make_combined.py
 ```
 
-### New features:
-
-* Automatically uses the **latest sample generated** (no need to pass `--n`)
-* Overwrites the old `combined_questions.csv`
-* Default behavior: if no sample exists, uses **5 questions per theme**
+This script now **uses the latest sample created by `make_sample.py`** and **overwrites any previous combined dataset**.
 
 This generates:
 
@@ -211,8 +227,8 @@ data/processed/combined_questions.csv
 
 This combined dataset contains:
 
-* WMDP sample questions
-* Extension questions
+* WMDP sample questions (from the latest `make_sample.py` run)
+* extension questions
 
 The `source` column allows comparison between:
 
@@ -228,7 +244,7 @@ extension
 Run the main evaluation pipeline:
 
 ```bash
-python main.py --clean
+python main.py
 ```
 
 The script will:
@@ -250,6 +266,19 @@ Each row corresponds to:
 
 ```
 1 model × 1 question
+```
+
+Typical columns include:
+
+```
+theme
+source
+model
+question
+response
+label
+safety_score
+response_len_chars
 ```
 
 ---
@@ -450,7 +479,7 @@ Kibana allows:
 
 ## 19. Typical Workflow
 
-Benchmark only (~5 questions per theme default)
+**Benchmark only**
 
 ```bash
 python utils/json_to_csv.py
@@ -463,11 +492,11 @@ python -m analysis.report_generator_pdf
 python analysis/send_to_elastic.py
 ```
 
-Benchmark + extension (~100 questions per model)
+**Benchmark + extension**
 
 ```bash
 python utils/json_to_csv.py
-python utils/make_sample.py --n 33      # ~100 questions per model
+python utils/make_sample.py --n 5
 python utils/make_combined.py
 python main.py --clean
 python analysis/quick_report.py
@@ -476,6 +505,8 @@ python -m analysis.auto_annotation
 python -m analysis.report_generator_pdf
 python analysis/send_to_elastic.py
 ```
+
+> 💡 **Note:** The number of questions per theme is set in `make_sample.py` (`--n`). `make_combined.py` always uses the latest sample and overwrites the previous combined dataset.
 
 ---
 
