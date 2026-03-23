@@ -22,21 +22,14 @@ The system automatically:
 
 The evaluation pipeline is:
 
-WMDP Benchmark
-↓
-Question Sampling
-↓
-LLM Inference
-↓
-Response Classification
-↓
-Safety Scoring
-↓
-Results Storage (CSV + Elasticsearch)
-↓
-Analysis (Python + Kibana)
-↓
-PDF Report
+WMDP Benchmark <br>
+↓ Question Sampling <br>
+↓ LLM Inference <br>
+↓ Response Classification <br>
+↓ Safety Scoring <br>
+↓ Results Storage (CSV + Elasticsearch) <br>
+↓ Analysis (Python + Kibana) <br>
+↓ PDF Report
 
 The project combines **automated evaluation**, **human annotation**, and **interactive analytics**.
 
